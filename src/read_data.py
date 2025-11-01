@@ -1,0 +1,1 @@
+# Goal: use methods from parquet_helpers.py to read data and store as parquets
