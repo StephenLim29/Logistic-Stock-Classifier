@@ -3,19 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class MultiHeadAttention(nn.Module):
-    """
-    Computes multi-head attention. Supports nested or padded tensors.
-
-    Args:
-        E_q (int): Size of embedding dim for query
-        E_k (int): Size of embedding dim for key
-        E_v (int): Size of embedding dim for value
-        E_total (int): Total embedding dim of combined heads post input projection. Each head
-            has dim E_total // nheads
-        nheads (int): Number of heads
-        dropout (float, optional): Dropout probability. Default: 0.0
-        bias (bool, optional): Whether to add bias to input projection. Default: True
-    """
+    
     def __init__(self, E_q: int, E_k: int, E_v: int, E_total: int,
         nheads: int, dropout: float=0.0,
         bias=True, device=None, dtype=None
@@ -39,23 +27,7 @@ class MultiHeadAttention(nn.Module):
 
     def forward(self, query: torch.Tensor, key: torch.Tensor, value: torch.Tensor,
                 attn_mask=None, is_causal=False,) -> torch.Tensor:
-        """
-        Forward pass; runs the following process:
-        1. Apply input projection
-        2. Split heads and prepare for SDPA
-        3. Run SDPA
-        4. Apply output projection
-
-        Args:
-        query (torch.Tensor): query of shape (``N``, ``L_q``, ``E_qk``)
-        key (torch.Tensor): key of shape (``N``, ``L_kv``, ``E_qk``)
-        value (torch.Tensor): value of shape (``N``, ``L_kv``, ``E_v``)
-        attn_mask (torch.Tensor, optional): attention mask of shape (``N``, ``L_q``, ``L_kv``) to pass to SDPA. Default: None
-        is_causal (bool, optional): Whether to apply causal mask. Default: False
-
-        Returns:
-        attn_output (torch.Tensor): output of shape (N, L_t, E_q)
-        """
+       
         # Step 1. Apply input projection
         if self._qkv_same_embed_dim:
             if query is key and key is value:
