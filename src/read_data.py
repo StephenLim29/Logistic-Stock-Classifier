@@ -31,7 +31,7 @@ endDate = None
 earningsLimit = 16       
 
 # How many trading days before the 5 day blackout to train on?
-# Changing this will presumable change accuracy and runtime
+# Changing this will presumably change accuracy and runtime
 windowSize = 60
 
 
@@ -125,10 +125,18 @@ class EarningsWindowDataset(Dataset):
             else:
                 pad_mask = np.ones(self.window, dtype=bool)
 
+            # DONE: replace this with your true classification target.
+            adjClose = prices["Adj Close"]
+            p1 = adjClose[adjClose.index >= earnings_date + pd.Timedelta(days=1)]
+            p5 = adjClose[adjClose.index >= earnings_date + pd.Timedelta(days=5)]
 
-            # NEED TO DO: replace this with your true classification target.
-            # For now, dummy label always 0 so the pipeline compiles.
-            label = 0
+            if p1.empty or p5.empty: 
+                continue
+
+            return1 = float(p1.iloc[0])
+            return5 = float(p5.iloc[0])
+            returnAfterEarnings = (return1 - return5) / return1
+            label = 1 if returnAfterEarnings > 0 else 0
 
             # Save this earnings event as one sample training example 
             samples.append(
@@ -140,7 +148,6 @@ class EarningsWindowDataset(Dataset):
                     "earnings_date": str(earnings_date.date()),
                 }
             )
-
 
         self.samples = samples
         # Print for debugging 

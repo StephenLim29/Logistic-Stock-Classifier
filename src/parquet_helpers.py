@@ -9,8 +9,6 @@ import yfinance as yf
 data_Dir = os.path.join("data", "raw")
 os.makedirs(data_Dir, exist_ok=True)
 
-
-
 # Table helpers
 
 def save_table(df, base_path):
@@ -21,7 +19,6 @@ def save_table(df, base_path):
     df.to_csv(out_path)
     return out_path
 
-
 def load_table(base_path):
     csv_path = base_path + ".csv"
 
@@ -31,8 +28,6 @@ def load_table(base_path):
 
     raise FileNotFoundError(f"load_table(). No file found: {base_path}")
 
-
-
 # Normalization 
 def normalize_price_frame(df):
     if df is None or df.empty:
@@ -40,6 +35,14 @@ def normalize_price_frame(df):
 
     # Make column names consistent
     df = df.rename(columns=str.title)
+
+    if "Adj Close" not in df.columns:
+        if "Price" in df.columns:
+            df["Adj Close"] = df["Price"]
+            print("setting adj close to price")
+        else:
+            df["Adj Close"] = df["Close"]
+            print("setting adj close to close")
 
     # Ensure Date index and sorted
     # yfinance dates look like '2018-01-02'
@@ -49,9 +52,6 @@ def normalize_price_frame(df):
     df = df.sort_index()
     df = df.dropna(how="all")
     return df
-
-
-
 
 # Yahoo Finance fetchers
 
@@ -125,9 +125,6 @@ def fetch_earnings_dates(tickers, limit, dataDir=data_Dir):
     combined = (pd.concat(earnings_tables, ignore_index=True).sort_values(["Ticker", "EarningsDate"]))
     used_path = save_table(combined, os.path.join(dataDir, "earnings_dates"))
     print(f"Saved earnings table to {used_path} with {len(combined)} rows")
-
-
-
 
 # Loaders
 
