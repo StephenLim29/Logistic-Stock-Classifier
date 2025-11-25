@@ -1,6 +1,7 @@
 import torch 
 import torch.nn as nn
 import torch.nn.functional as F
+import sys
 
 class MultiHeadAttention(nn.Module):
     
@@ -26,9 +27,9 @@ class MultiHeadAttention(nn.Module):
         self.bias = bias
 
     def forward(self, query: torch.Tensor, key: torch.Tensor, value: torch.Tensor,
-                attn_mask=None, is_causal=False,) -> torch.Tensor:
-       
-        # Step 1. Apply input projection
+                attn_mask, is_causal=False,) -> torch.Tensor:
+        
+        # Apply input projection
         if self._qkv_same_embed_dim:
             if query is key and key is value:
                 result = self.packed_proj(query)
@@ -39,7 +40,7 @@ class MultiHeadAttention(nn.Module):
                 )
                 if self.bias:
                     q_bias, k_bias, v_bias = torch.chunk(
-                        self.packed_proj.weight, 3, dim=0
+                        self.packed_proj.bias, 3, dim=0
                     )
                 else:
                     q_bias, k_bias, v_bias = None, None, None
@@ -52,8 +53,8 @@ class MultiHeadAttention(nn.Module):
             query = self.q_proj(query)
             key = self.k_proj(key)
             value = self.v_proj(value)
-
-        # Step 2. Split heads and prepare for SDPA
+        
+        # Split heads and prepare for SDPA
         # reshape query, key, value to separate by head
         # (N, L_t, E_total) -> (N, L_t, nheads, E_head) -> (N, nheads, L_t, E-head)
         query = query.unflatten(-1, [self.nheads, self.E_head]).transpose(1, 2)
@@ -62,7 +63,7 @@ class MultiHeadAttention(nn.Module):
         # (N, L_s, E_total) -> (N, L_s, nheads, E_head) -> (N, nheads, L_s, E_head)
         value = value.unflatten(-1, [self.nheads, self.E_head]).transpose(1, 2)
 
-        # Step 3. Run SDPA
+        # Run SDPA
         # (N, nheads, L_t, E_head)
         attn_output = F.scaled_dot_product_attention(
             query, key, value, dropout_p=self.dropout, is_causal=is_causal
@@ -70,8 +71,8 @@ class MultiHeadAttention(nn.Module):
         # (N, nheads, L_t, E_head) -> (N, L_t, nheads, E_head) -> (N, L_t, E_total)
         attn_output = attn_output.transpose(1, 2).flatten(-2)
 
-        # Step 4. Apply output projection
+        # Apply output projection
         # (N, L_t, E_total) -> (N, L_t, E_out)
         attn_output = self.out_proj(attn_output)
-
+        
         return attn_output

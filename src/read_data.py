@@ -125,7 +125,7 @@ class EarningsWindowDataset(Dataset):
             else:
                 pad_mask = np.ones(self.window, dtype=bool)
 
-            # DONE: replace this with your true classification target.
+            # DONE: replace this with the true classification target.
             adjClose = prices["Adj Close"]
             p1 = adjClose[adjClose.index >= earnings_date + pd.Timedelta(days=1)]
             p5 = adjClose[adjClose.index >= earnings_date + pd.Timedelta(days=5)]
