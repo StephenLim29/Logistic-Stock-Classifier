@@ -7,6 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 import sys
 from read_data import build_earnings_dataloader, EarningsWindowDataset
 from parquet_helpers import data_Dir
+from collections import Counter
 
 d_model = 512
 
@@ -95,7 +96,55 @@ def test(model, dataloader, loss_fn, device):
         accuracy = correct / max(1, total_examples)
     return average_loss, accuracy
 
-if __name__ == "__main__":    
+
+def evaluation(model, dataloader, device):
+    model.eval()
+
+    all_predictions = []
+    all_labels = []
+    all_tickers = []
+
+    with torch.no_grad():
+        for batch in dataloader:
+            inputs = batch["inputs"].to(device)
+            pad_mask = batch["pad_mask"].to(device)
+            labels = batch["labels"].to(device).long()
+            tickers = batch["ticker"]
+
+            attention_mask = pad_mask[:, None, None, :]
+            logits = model(inputs, attention_mask)
+            predictions = logits.argmax(dim=-1)
+
+            all_predictions.extend(predictions.cpu().tolist())
+            all_labels.extend(labels.cpu().tolist())
+            all_tickers.extend(tickers)
+
+            # Build Confusion Matrix
+            tn = sum(1 for p, y in zip(all_predictions, all_labels) if p == 0 and y == 0)
+            fp = sum(1 for p, y in zip(all_predictions, all_labels) if p == 1 and y == 0)
+            fn = sum(1 for p, y in zip(all_predictions, all_labels) if p == 0 and y == 1)
+            tp = sum(1 for p, y in zip(all_predictions, all_labels) if p == 1 and y == 1)
+
+            print(f"CONFUSION MATRIX tn={tn}, fp={fp}, fn={fn}, tp={tp}")
+
+
+            # Per Ticket Accuracy
+            per_ticker = {}
+
+            for p, y, t in zip(all_predictions, all_labels, all_tickers):
+                if t not in per_ticker:
+                    per_ticker[t] = {"Correct": 0, "Total": 0}
+                per_ticker[t]["Total"] += 1
+                if p == y:
+                    per_ticker[t]["Correct"] += 1
+            print("Per Ticker Accuracy:")
+            for t, stats in per_ticker.items():
+                acc = stats["Correct"] / max(1, stats["Total"])
+                print(f"{t}: Right: {stats["Correct"]}, Total: {stats["Total"]}, Accuracy: {acc:.2f}")
+
+
+
+if __name__ == "__main__":
     windowSize = 60
     companies = [
     "AAPL", "MSFT", "AMZN", "NVDA", "META",
@@ -124,5 +173,12 @@ if __name__ == "__main__":
         test_loss, test_acc = test(t, test_loader, loss_fn, device)
         print(f"train loss: {train_loss:.2f} | train accuracy: {train_acc:.2f}\n"
               f"test loss: {test_loss:.2f} | test accuracy: {test_acc:.2f}")
+
+
+        print("\nPer Ticker and Confusion Matrix evaluation on each test:")
+        evaluation(t, test_loader, device)
+        print("\n")
+
+
     
 

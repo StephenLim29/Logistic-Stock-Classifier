@@ -156,6 +156,18 @@ class EarningsWindowDataset(Dataset):
             f"window={self.window}, features={self.feature_cols}"
         )
 
+        # --- NEW: basic dataset stats ---
+        labels = [s["labels"].item() for s in self.samples]
+        tickers_list = [s["ticker"] for s in self.samples]
+
+        num_pos = sum(labels)
+        num_neg = len(labels) - num_pos
+        print(f"[stats] labels -> 0: {num_neg}, 1: {num_pos}, pos_frac={num_pos / max(1, len(labels)):.3f}")
+
+        from collections import Counter
+        ticker_counts = Counter(tickers_list)
+        print(f"[stats] samples per ticker: {ticker_counts}")
+
 
 
     # Defining the two methods PyTorch needs so DataLoader can work
