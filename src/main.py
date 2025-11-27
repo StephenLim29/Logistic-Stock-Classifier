@@ -21,6 +21,7 @@ def train(model, dataloader, optimizer, loss_fn, device):
     model.train()
     total_loss = 0.0
     total_examples = 0
+    correct = 0
 
     for batch in dataloader:
         inputs = batch["inputs"].to(device)
@@ -53,17 +54,25 @@ def train(model, dataloader, optimizer, loss_fn, device):
         total_loss += loss.item() * bs
         total_examples += bs
 
+        predicted_labels = torch.argmax(logits, dim=-1)
+        correct += (predicted_labels == labels).sum().item()
+
+
     if torch.isnan(torch.tensor(total_loss)):
         print("NaNs in inputs")
         sys.exit(1)
 
-    return total_loss / max(1, total_examples)
+    average_loss = total_loss / max(1, total_examples)
+    accuracy = correct / max(1, total_examples)
+
+    return average_loss, accuracy
 
 def test(model, dataloader, loss_fn, device):
     size = len(dataloader.dataset)
     num_batches = len(dataloader)
     model.eval()
     test_loss, total_examples, total_loss = 0, 0, 0
+    correct = 0
     
     with torch.no_grad():
         for batch in dataloader:
@@ -79,7 +88,12 @@ def test(model, dataloader, loss_fn, device):
             total_loss += test_loss * bs
             total_examples += bs
 
-    return total_loss / max(1, total_examples)
+            predicted_labels = torch.argmax(pred, dim=-1)
+            correct += (predicted_labels == labels).sum().item()
+
+        average_loss = total_loss / max(1, total_examples)
+        accuracy = correct / max(1, total_examples)
+    return average_loss, accuracy
 
 if __name__ == "__main__":    
     windowSize = 60
@@ -106,7 +120,9 @@ if __name__ == "__main__":
 
     for epoch in range(epochs):
         print(f"Epoch: {epoch}\n--------------------")
-        train_loss = train(t, train_loader, optimizer, loss_fn, device)
-        test_loss = test(t, test_loader, loss_fn, device)
-        print(f"train loss: {train_loss} | test loss: {test_loss}")
+        train_loss, train_acc = train(t, train_loader, optimizer, loss_fn, device)
+        test_loss, test_acc = test(t, test_loader, loss_fn, device)
+        print(f"train loss: {train_loss:.2f} | train accuracy: {train_acc:.2f}\n"
+              f"test loss: {test_loss:.2f} | test accuracy: {test_acc:.2f}")
     
+
