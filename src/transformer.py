@@ -11,7 +11,11 @@ class Transformer(nn.Module):
 
         self.layernorm1 = nn.LayerNorm(d_model)
         self.layernorm2 = nn.LayerNorm(d_model)
-        self.mha = MHA(d_model, d_model, d_model, d_model, 16, True)
+
+        # self.mha = MHA(d_model, d_model, d_model, d_model, 4, True)
+        # To fix attention (sync var names from mha.py):
+        self.mha = MHA(E_q=d_model, E_k=d_model, E_v=d_model, E_total=d_model, nheads=4, dropout=0.1, bias=True)
+
         self.ffn = nn.Sequential(
             nn.Linear(d_model, 4*d_model),
             nn.GELU(),

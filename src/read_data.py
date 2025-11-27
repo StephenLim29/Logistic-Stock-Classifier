@@ -76,6 +76,7 @@ class EarningsWindowDataset(Dataset):
         self.feature_cols = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
         samples = []
 
+
         # Build one sample per (Ticker, EarningsDate)
         for _, row in earnings_df.iterrows():
             ticker = row["Ticker"]
@@ -107,38 +108,71 @@ class EarningsWindowDataset(Dataset):
             input_window = preEarnings_prices.tail(self.window)
             numDays = len(input_window)
 
-            # Get the OHLCV 
-            features = input_window[self.feature_cols].to_numpy(dtype="float32")
+
+            # Normalize within the window
+
+            # Make sure we have the columns we expect and no NaNs inside the window
+            input_window = input_window[["Open", "High", "Low", "Close", "Adj Close", "Volume"]].copy()
+            input_window = input_window.ffill().bfill()
+
+            # Split prices vs volume
+            prices_only = input_window[["Open", "High", "Low", "Close", "Adj Close"]].to_numpy(dtype="float32")
+            volume = input_window[["Volume"]].to_numpy(dtype="float32")
+
+            # Normalize prices by the last Close in the window
+            ref_price = float(prices_only[-1, 3])  # index 3 = "Close"
+
+            # Debugging/Skipping
+            if ref_price <= 0 or np.isnan(ref_price):
+                continue
+
+            prices_norm = prices_only / max(ref_price, 1e-6)
+
+            # Log-scale volume to shrink big magnitudes
+            volume = np.clip(volume, a_min=0.0, a_max=None)
+            volume_log = np.log1p(volume)
+
+            # Concatenate back into a (numDays, 6) feature matrix
+            features_window = np.concatenate([prices_norm, volume_log], axis=1).astype("float32")
 
             # If there are not enough days to cover the length of the window we will pad with 0s (padding 0s to the left)
             if numDays < self.window:
                 numPad = self.window - numDays
-                padding = np.zeros((numPad, features.shape[1]), dtype="float32")
-                features = np.vstack([padding, features])
+                padding = np.zeros((numPad, features_window.shape[1]), dtype="float32")
+                features = np.vstack([padding, features_window])
 
                 # Build a mask to represent what is real data from the df and what is padded
                 # Will be information for the transformer
                 pad_mask = np.concatenate([
-                        np.zeros(numPad, dtype=bool), 
-                        np.ones(numDays, dtype=bool)
-                    ])
+                    np.zeros(numPad, dtype=bool),
+                    np.ones(numDays, dtype=bool)
+                ])
             else:
+                features = features_window
                 pad_mask = np.ones(self.window, dtype=bool)
 
-            # DONE: replace this with the true classification target.
-            adjClose = prices["Adj Close"]
-            p1 = adjClose[adjClose.index >= earnings_date + pd.Timedelta(days=1)]
-            p5 = adjClose[adjClose.index >= earnings_date + pd.Timedelta(days=5)]
 
-            if p1.empty or p5.empty: 
+            # Classification found in "Visualizing Earnings to Predict Post-Earnings Announcement Drift: A Deep Learning Approach" pg.12-13
+            H = 21  # how far out we look post-earnings
+            min_post_days = 5  # require some data
+            threshold = 0.05  # 5% absolute move
+
+            adjClose = prices["Adj Close"]
+            start = earnings_date + pd.Timedelta(days=1)
+            end = earnings_date + pd.Timedelta(days=H)
+            post_window = adjClose[(adjClose.index >= start) & (adjClose.index <= end)]
+
+            if len(post_window) < min_post_days:
                 continue
 
-            return1 = float(p1.iloc[0])
-            return5 = float(p5.iloc[0])
-            returnAfterEarnings = (return1 - return5) / return1
-            label = 1 if returnAfterEarnings > 0 else 0
+            price_start = float(post_window.iloc[0])
+            price_end = float(post_window.iloc[-1])
+            bh_return = (price_end / price_start) - 1.0
 
-            # Save this earnings event as one sample training example 
+            label = 1 if abs(bh_return) >= threshold else 0
+
+
+            # Save this earnings event as one sample training example
             samples.append(
                 {
                     "inputs": torch.from_numpy(features),                       
@@ -222,7 +256,7 @@ if __name__ == "__main__":
         tickers_batch = batch["ticker"]
         dates_batch = batch["earnings_date"]
 
-        print(f"[check] batch shapes: {batch.shape}")
+        print(f"[check] batch shapes: {batch.keys()}")
         print(f"inputs: {inputs.shape}")
         print(f"pad mask: {pad_mask.shape}")
         print(f"labels: {labels.shape}")
