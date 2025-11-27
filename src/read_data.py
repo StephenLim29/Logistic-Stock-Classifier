@@ -210,7 +210,7 @@ if __name__ == "__main__":
         tickers_batch = batch["ticker"]
         dates_batch = batch["earnings_date"]
 
-        print("[check] batch shapes:")
+        print(f"[check] batch shapes: {batch.shape}")
         print(f"inputs: {inputs.shape}")
         print(f"pad mask: {pad_mask.shape}")
         print(f"labels: {labels.shape}")
