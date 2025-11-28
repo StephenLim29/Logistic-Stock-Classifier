@@ -8,8 +8,9 @@ import sys
 from read_data import build_earnings_dataloader, EarningsWindowDataset
 from parquet_helpers import data_Dir
 from collections import Counter
+import matplotlib.pyplot as plt
 
-d_model = 128
+d_model = 64
 
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
 
@@ -73,12 +74,13 @@ def test(model, dataloader, loss_fn, device, accuracies):
     test_loss, total_examples, total_loss = 0, 0, 0
     correct = 0
     test_loss, total_examples, total_loss, correct = 0, 0, 0, 0
-    
+
     with torch.no_grad():
         for batch in dataloader:
             inputs = batch["inputs"].to(device)
             pad_mask = batch["pad_mask"].to(device)
             labels = batch["labels"].to(device).long()
+            tickers = batch["ticker"]
 
             attention_mask = pad_mask[:, None, None, :]
             pred = model(inputs, attention_mask)
@@ -89,11 +91,12 @@ def test(model, dataloader, loss_fn, device, accuracies):
             total_loss += test_loss * bs
             total_examples += bs
 
-            predicted_labels = torch.argmax(pred, dim=-1)
-            correct += (predicted_labels == labels).sum().item()
+            #predicted_labels = torch.argmax(pred, dim=-1)
+            #correct += (predicted_labels == labels).sum().item()
 
         average_loss = total_loss / max(1, total_examples)
         accuracy = correct / max(1, total_examples)
+        accuracies.append(accuracy)
     return average_loss, accuracy
 
 
@@ -142,10 +145,8 @@ def evaluation(model, dataloader, device):
             acc = stats["Correct"] / max(1, stats["Total"])
             print(f"{t}: Right: {stats['Correct']}, Total: {stats['Total']}, Accuracy: {acc:.2f}")
 
-
-
 if __name__ == "__main__":
-    windowSize = 60
+    windowSize = 100
     companies = [
     "AAPL", "MSFT", "AMZN", "NVDA", "META",
     "GOOGL", "JPM", "WMT", "HD", "MCD",
@@ -191,7 +192,6 @@ if __name__ == "__main__":
     test_loader = DataLoader(test_set, batch_size = 32, shuffle = False)
     """
 
-
     # 60 / 20 / 20
     # train / val / test split
     trainLen = int(0.6 * N)
@@ -214,10 +214,13 @@ if __name__ == "__main__":
     best_epoch = -1
     best_state_dict = None
 
+    accuracies = []
+
     for epoch in range(epochs):
         print(f"Epoch: {epoch}\n--------------------")
         train_loss, train_acc = train(t, train_loader, optimizer, loss_fn, device)
-        val_loss, val_acc = test(t, val_loader, loss_fn, device)
+        val_loss, val_acc = test(t, val_loader, loss_fn, device, accuracies)
+        #accuracies.append(val_acc)
 
         print(
             f"train loss: {train_loss:.2f} | train accuracy: {train_acc:.2f}\n"
@@ -230,9 +233,6 @@ if __name__ == "__main__":
             best_epoch = epoch
             best_state_dict = t.state_dict()  # save a copy of parameters
 
-
-
-
     print(f"\nBest epoch by val accuracy: {best_epoch} (val_acc={best_val_acc:.3f})")
 
     # Load best model before evaluating on test
@@ -240,12 +240,19 @@ if __name__ == "__main__":
         t.load_state_dict(best_state_dict)
 
     print("\nFinal evaluation on TEST set:")
-    test_loss, test_acc = test(t, test_loader, loss_fn, device)
+    test_loss, test_acc = test(t, test_loader, loss_fn, device, accuracies)
     print(f"test loss: {test_loss:.2f} | test accuracy: {test_acc:.2f}")
 
 
     evaluation(t, test_loader, device)
     print()
+    
+    plt.plot(range(0, epochs+1), accuracies, color="red")
+    plt.xlabel("epochs")
+    plt.ylabel("accuracy")
+    plt.title(f"Accuracy over {epochs} epochs")
+    plt.legend()
+    plt.show()
 
     
 

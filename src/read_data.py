@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
+from collections import Counter
 
 from parquet_helpers import (
     data_Dir,
@@ -135,9 +136,9 @@ class EarningsWindowDataset(Dataset):
             # Concatenate back into a (numDays, 6) feature matrix
             features_window = np.concatenate([prices_norm, volume_log], axis=1).astype("float32")
 
-            mean = features.mean(0)
-            std = features.std(0)
-            features = (features - mean) / (std + 1e-8)
+           # mean = features.mean(0)
+            #std = features.std(0)
+           # features = (features - mean) / (std + 1e-8)
 
             # If there are not enough days to cover the length of the window we will pad with 0s (padding 0s to the left)
             if numDays < self.window:
@@ -202,7 +203,6 @@ class EarningsWindowDataset(Dataset):
         num_neg = len(labels) - num_pos
         print(f"[stats] labels -> 0: {num_neg}, 1: {num_pos}, pos_frac={num_pos / max(1, len(labels)):.3f}")
 
-        from collections import Counter
         ticker_counts = Counter(tickers_list)
         print(f"[stats] samples per ticker: {ticker_counts}")
 
