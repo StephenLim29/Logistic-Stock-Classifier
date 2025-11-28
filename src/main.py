@@ -7,8 +7,9 @@ from torch.utils.data import Dataset, DataLoader
 import sys
 from read_data import build_earnings_dataloader, EarningsWindowDataset
 from parquet_helpers import data_Dir
+import matplotlib.pyplot as plt
 
-d_model = 512
+d_model = 128
 
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
 
@@ -27,8 +28,6 @@ def train(model, dataloader, optimizer, loss_fn, device):
         inputs = batch["inputs"].to(device)
         pad_mask = batch["pad_mask"].to(device)
         labels = batch["labels"].to(device).long()
-
-        
 
         attention_mask = pad_mask[:, None, None, :]
 
@@ -67,12 +66,13 @@ def train(model, dataloader, optimizer, loss_fn, device):
 
     return average_loss, accuracy
 
-def test(model, dataloader, loss_fn, device):
+def test(model, dataloader, loss_fn, device, accuracies):
     size = len(dataloader.dataset)
     num_batches = len(dataloader)
     model.eval()
     test_loss, total_examples, total_loss = 0, 0, 0
     correct = 0
+    test_loss, total_examples, total_loss, correct = 0, 0, 0, 0
     
     with torch.no_grad():
         for batch in dataloader:
@@ -83,17 +83,15 @@ def test(model, dataloader, loss_fn, device):
             attention_mask = pad_mask[:, None, None, :]
             pred = model(inputs, attention_mask)
             test_loss = loss_fn(pred, labels).item()
+            correct += (pred.argmax(1) == labels).type(torch.float).sum().item()
 
             bs = inputs.size(0)
             total_loss += test_loss * bs
             total_examples += bs
+    correct /= size
+    accuracies.append(correct * 100)
 
-            predicted_labels = torch.argmax(pred, dim=-1)
-            correct += (predicted_labels == labels).sum().item()
-
-        average_loss = total_loss / max(1, total_examples)
-        accuracy = correct / max(1, total_examples)
-    return average_loss, accuracy
+    return total_loss / max(1, total_examples)
 
 if __name__ == "__main__":    
     windowSize = 60
@@ -118,11 +116,23 @@ if __name__ == "__main__":
 
     test_loader = DataLoader(test_set, batch_size = 32, shuffle = False)
 
+    accuracies = []
+
     for epoch in range(epochs):
         print(f"Epoch: {epoch}\n--------------------")
         train_loss, train_acc = train(t, train_loader, optimizer, loss_fn, device)
-        test_loss, test_acc = test(t, test_loader, loss_fn, device)
+        test_loss, test_acc = test(t, test_loader, loss_fn, device, accuracies)
         print(f"train loss: {train_loss:.2f} | train accuracy: {train_acc:.2f}\n"
               f"test loss: {test_loss:.2f} | test accuracy: {test_acc:.2f}")
+
+    plt.plot(range(0, epochs), accuracies, label="Accuracies", color="red")
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.title(f"Accuracy over {epochs} epochs")
+    plt.grid(True)
+    plt.show()
+
+
+    
     
 

@@ -110,6 +110,10 @@ class EarningsWindowDataset(Dataset):
             # Get the OHLCV 
             features = input_window[self.feature_cols].to_numpy(dtype="float32")
 
+            mean = features.mean(0)
+            std = features.std(0)
+            features = (features - mean) / (std + 1e-8)
+
             # If there are not enough days to cover the length of the window we will pad with 0s (padding 0s to the left)
             if numDays < self.window:
                 numPad = self.window - numDays
@@ -163,7 +167,9 @@ class EarningsWindowDataset(Dataset):
         return len(self.samples)
 
     def __getitem__(self, index):
-        return self.samples[index]
+        batch = self.samples[index]
+     
+        return batch
 
 
 
