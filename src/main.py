@@ -10,14 +10,14 @@ from parquet_helpers import data_Dir
 from collections import Counter
 import matplotlib.pyplot as plt
 
-d_model = 64
+d_model = 32
 
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
 
 t = Transformer(d_model).to(device)
 # loss_fn = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(t.parameters(), lr=1e-4)
-epochs = 100
+epochs = 50000
 
 def train(model, dataloader, optimizer, loss_fn, device):
     model.train()
@@ -173,9 +173,6 @@ if __name__ == "__main__":
     # Move weights to the right device and define loss_fn
     class_weights = class_weights.to(device)
     loss_fn = nn.CrossEntropyLoss(weight=class_weights)
-
-
-    N = len(full_data)
 
     # 80 / 20 train test split
     """
